@@ -6,6 +6,7 @@ from tqdm import tqdm
 import torch.utils.data as data
 from data_util import config
 
+logger = logging.getLogger("restoration")
 
 class Dataset(data.Dataset):
 
@@ -46,7 +47,7 @@ class Data(object):
             for sample in data:
                 a_train_sample = {
                     "feature": sample["context"] + " " + sample["utterance"],
-                    "target": sample["tagging"] + [0] * (config.max_len-len(sample["tagging"]))
+                    "target": [0] + sample["tagging"] + [0] * (config.max_len-len(sample["tagging"])-1)
                 }
                 samples.append(a_train_sample)
         return samples
@@ -60,14 +61,14 @@ class Data(object):
             tokens.extend(self.bert_tokenizer.tokenize(a_sent))
             tokens.append("[SEP]")
 
+        # Modify tokens to a fixed length
         doc_len = len(tokens)
-
         if doc_len < config.max_len:
             tokens.extend(["[PAD]"] * (config.max_len - doc_len))
         else:
             tokens = tokens[:config.max_len]
         indexed_tokens = self.bert_tokenizer.convert_tokens_to_ids(tokens)
-        # print(len(indexed_tokens), indexed_tokens)
+
         return indexed_tokens
 
     def data_to_bert_input(self, cells):
@@ -78,6 +79,15 @@ class Data(object):
                 features.append(self.feature2vec(cell["feature"]))
                 targets.append(cell["target"])
                 pbar.update(1)
+                
+        # Show some examples to make sure data is handled in a right way
+        ori = self.bert_tokenizer.convert_ids_to_tokens(features[0])
+        logger.info("Length of feature: {}".format(len(features[0])))
+        logger.info("Length of target : {}".format(len(targets[0])))
+        for idx, tag in enumerate(targets[0]):
+            if tag == 1:
+                logger.info("{}".format(ori[idx]))
+
         self.features = features
         self.targets = targets
 

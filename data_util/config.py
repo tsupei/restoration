@@ -1,5 +1,6 @@
-
 # PATH
+# -* Change to your own path *-
+
 bert_file = "/Users/admin/open-source-git/chinese_L-12_H-768_A-12"
 data_file = "/Users/admin/Practice/bert-test/data/test_zh_tw.json"
 
