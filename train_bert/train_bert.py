@@ -69,12 +69,13 @@ class Trainee(object):
                     else:
                         self.bert_model.eval()
                     encoded_layers, _ = self.bert_model(feature, segments_tensors)
+                    encoded_layers.to(self.device)
 
                     # Tag classifier
                     self.ffnn_model.train()
                     tag_loss = None
                     for idx in range(0, config.max_len):
-                        indices = torch.tensor([idx], dtype=torch.long)
+                        indices = torch.tensor([idx], dtype=torch.long).to(self.device)
                         cls_feature = torch.index_select(encoded_layers, 1, indices)
                         tag = self.ffnn_model(cls_feature)
 
@@ -120,12 +121,14 @@ class Trainee(object):
                 segments_tensors = segments_tensors.to(self.device)
                 self.bert_model.eval()
                 encoded_layers, _ = self.bert_model(feature, segments_tensors)
+                encoded_layers = encoded_layers.to(self.device)
 
                 # Tag classifier
                 self.ffnn_model.eval()
                 tag_loss = None
                 for idx in range(0, config.max_len):
                     indices = torch.tensor([idx], dtype=torch.long)
+                    indices = indices.to(self.device)
                     cls_feature = torch.index_select(encoded_layers, 1, indices)
                     tag = self.ffnn_model(cls_feature)
 
@@ -152,7 +155,7 @@ class Trainee(object):
                 cnt += 1
                 pbar.update(1)
 
-    def save_model(self, filename):
+    def load_model(self, filename):
         if torch.cuda.is_available():
             model_state = torch.load(filename)
         else:
@@ -160,7 +163,7 @@ class Trainee(object):
 
         self.ffnn_model.load_state_dict(model_state, strict=False)
 
-    def load_model(self, filename):
+    def save_model(self, filename):
         torch.save(self.ffnn_model.state_dict(), filename)
 
     def save_bert(self, dir_name):
@@ -168,7 +171,7 @@ class Trainee(object):
             raise ValueError('Intend to save bert model while bert model is None')
         if not os.path.exists(dir_name):
             raise FileNotFoundError("Specified Path is not found: {}".format(dir_name))
-        
+
         bert_file = os.path.join(dir_name, "pytorch_model.bin")
         bert_config = os.path.join(dir_name, "bert_config.json")
         model_to_save = self.bert_model.module if hasattr(self.bert_model, 'module') else self.bert_model
