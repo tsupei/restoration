@@ -14,9 +14,8 @@ logger = logging.getLogger("restoration")
 
 
 class Trainee(object):
-    def __init__(self, data, bert_model):
+    def __init__(self, bert_model):
         super().__init__()
-        self.data = data
         self.device, n_gpu = self._check_device()
         self.bert_model = bert_model.to(self.device)
         self.ffnn_model = FeedForwardNeuralNetwork({
@@ -32,9 +31,16 @@ class Trainee(object):
             return device, n_gpu
         return device, -1
 
-    def train(self, fine_tune=False):
+    def train(self, data, fine_tune=False, save_dir=None):
+        # Initialize path
+        loss_stats = None
+        if save_dir:
+            if not os.path.exists(save_dir):
+                raise FileNotFoundError("save_dir is specified but not found: {}".format(save_dir))
+            loss_stats = os.path.join(save_dir, "loss.txt")
+
         # Initialize data loader
-        data_loader = DataLoader(self.data.get_dataset(),
+        data_loader = DataLoader(data.get_dataset(),
                                  batch_size=config.batch_size,
                                  shuffle=True,
                                  num_workers=1,
@@ -87,6 +93,17 @@ class Trainee(object):
                     # Loss output
                     tag_loss = tag_loss / config.max_len
                     tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
+
+                    if loss_stats and save_dir:
+                        if not os.path.exists(loss_stats):
+                            with open(loss_stats, 'w', encoding='utf8') as file:
+                                file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
+                                file.write("\n")
+                        else:
+                            with open(loss_stats, 'a', encoding='utf8') as file:
+                                file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
+                                file.write("\n")
+
                     tag_loss.backward()
 
                     # Step
@@ -94,7 +111,7 @@ class Trainee(object):
                     cnt += 1
                     pbar.update(1)
 
-    def test(self, save_dir=None):
+    def test(self, data, save_dir=None):
         # Initialize path
         loss_stats = None
         if save_dir:
@@ -103,7 +120,7 @@ class Trainee(object):
             loss_stats = os.path.join(save_dir, "loss.txt")
 
         # Initialize data loader
-        data_loader = DataLoader(self.data.get_dataset(),
+        data_loader = DataLoader(data.get_dataset(),
                                  batch_size=config.batch_size,
                                  shuffle=True,
                                  num_workers=1,
@@ -197,6 +214,15 @@ if __name__ == "__main__":
     data.data_to_bert_input(samples)
 
     # Training
-    trainee = Trainee(data=data, bert_model=bert_model)
-    trainee.train(fine_tune=False)
-    trainee.test()
+    trainee = Trainee(bert_model=bert_model)
+    trainee.train(data=data, fine_tune=False)
+
+    # Testing
+    test_data = Data(bert_tokenizer=bert_tokenizer)
+    test_samples = test_data.load_from_file(config.test_data_file)
+    test_data.data_to_bert_input(test_samples)
+
+    trainee.test(data=test_data)
+
+
+
