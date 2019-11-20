@@ -62,7 +62,7 @@ class Trainee(object):
             num_of_batch = len(data_loader.dataset) // config.batch_size
 
             # Logging interval for loss, cm, ...
-            log_interval = num_of_batch // 10
+            log_interval = num_of_batch // config.log_time_ratio
             log_interval = log_interval if log_interval != 0 else 1
 
             # Counter of step
@@ -105,7 +105,7 @@ class Trainee(object):
                     # Loss output
                     # tag_loss = tag_loss / config.max_len
                     if cnt % log_interval == 0:
-                        tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
+                        tqdm.write("[{}/{}] LOSS = {:.3f}".format(cnt, num_of_batch, tag_loss.item()))
 
                     if loss_stats and save_dir:
                         if not os.path.exists(loss_stats):
@@ -119,21 +119,21 @@ class Trainee(object):
 
                     tag_loss.backward()
 
+                    # Calculate scores including f1score, accuracy, precision, recall
+                    if cnt % log_interval == 0:
+                        scores = self._score(cm)
+                        tqdm.write("F1 score   : {:.3f}".format(scores[0]))
+                        tqdm.write("Accuracy   : {:.3f}".format(scores[1]))
+                        tqdm.write("Precision  : {:.3f}".format(scores[2]))
+                        tqdm.write("Recall     : {:.3f}".format(scores[3]))
+
+                        # Reset all values of cm
+                        cm = np.array([0, 0, 0, 0])
+
                     # Step
                     optimizer.step()
                     cnt += 1
                     pbar.update(1)
-
-                    # Calculate scores including f1score, accuracy, precision, recall
-                    if cnt % log_interval == 0:
-                        scores = self._score(cm)
-                        tqdm.write("F1 score   : {}".format(scores[0]))
-                        tqdm.write("Accuracy   : {}".format(scores[1]))
-                        tqdm.write("Precision  : {}".format(scores[2]))
-                        tqdm.write("Recall     : {}".format(scores[3]))
-
-                        # Reset all values of cm
-                        cm = np.array([0, 0, 0, 0])
 
     def test(self, data, save_dir=None):
         # Initialize path
@@ -156,6 +156,11 @@ class Trainee(object):
         cm = np.array([0, 0, 0, 0])  # tp, tn, fp, fn
 
         with tqdm(total=num_of_batch) as pbar:
+
+            # Logging interval for loss, cm, ...
+            log_interval = num_of_batch // config.log_time_ratio
+            log_interval = log_interval if log_interval != 0 else 1
+
             for feature, target, segments_tensors, attns_tensors in data_loader:
                 # Checkout device
                 feature, target = feature.to(self.device), target.to(self.device)
@@ -186,7 +191,8 @@ class Trainee(object):
 
                 # Loss output
                 # tag_loss = tag_loss / config.max_len
-                tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
+                if cnt % log_interval == 0:
+                    tqdm.write("[{}/{}] LOSS = {:.3f}".format(cnt, num_of_batch, tag_loss.item()))
 
                 if loss_stats and save_dir:
                     if not os.path.exists(loss_stats):
@@ -198,16 +204,21 @@ class Trainee(object):
                             file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
                             file.write("\n")
 
+                # Calculate scores including f1score, accuracy, precision, recall
+                if cnt % log_interval == 0:
+                    scores = self._score(cm)
+                    tqdm.write("F1 score   : {:.3f}".format(scores[0]))
+                    tqdm.write("Accuracy   : {:.3f}".format(scores[1]))
+                    tqdm.write("Precision  : {:.3f}".format(scores[2]))
+                    tqdm.write("Recall     : {:.3f}".format(scores[3]))
+                    tqdm.write("")
+
+                    # Reset all values of cm
+                    cm = np.array([0, 0, 0, 0])
+
                 # Step
                 cnt += 1
                 pbar.update(1)
-
-                # Calculate scores including f1score, accuracy, precision, recall
-                scores = self._score(cm)
-                logger.info("F1 score   : {}".format(scores[0]))
-                logger.info("Accuracy   : {}".format(scores[1]))
-                logger.info("Precision  : {}".format(scores[2]))
-                logger.info("Recall     : {}".format(scores[3]))
 
     def _cm(self, predicted_tag, gold_tag):
         """

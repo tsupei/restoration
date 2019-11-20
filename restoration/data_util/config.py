@@ -15,3 +15,4 @@ max_len = 150
 batch_size = 32
 total_epochs = 5
 lr = 0.05
+log_time_ratio = 10
