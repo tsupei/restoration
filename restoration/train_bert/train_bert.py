@@ -60,7 +60,14 @@ class Trainee(object):
         # Per epoch 
         for epoch in range(config.total_epochs):
             num_of_batch = len(data_loader.dataset) // config.batch_size
+
+            # Logging interval for loss, cm, ...
+            log_interval = num_of_batch // 10
+            log_interval = log_interval if log_interval != 0 else 1
+
+            # Counter of step
             cnt = 1
+
             # Per batch
             with tqdm(total=num_of_batch) as pbar:
                 for feature, target, segments_tensors, attns_tensors in data_loader:
@@ -97,7 +104,8 @@ class Trainee(object):
 
                     # Loss output
                     # tag_loss = tag_loss / config.max_len
-                    tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
+                    if cnt % log_interval == 0:
+                        tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
 
                     if loss_stats and save_dir:
                         if not os.path.exists(loss_stats):
@@ -115,12 +123,17 @@ class Trainee(object):
                     optimizer.step()
                     cnt += 1
                     pbar.update(1)
+
                     # Calculate scores including f1score, accuracy, precision, recall
-                    scores = self._score(cm)
-                    logger.info("F1 score   : {}".format(scores[0]))
-                    logger.info("Accuracy   : {}".format(scores[1]))
-                    logger.info("Precision  : {}".format(scores[2]))
-                    logger.info("Recall     : {}".format(scores[3]))
+                    if cnt % log_interval == 0:
+                        scores = self._score(cm)
+                        tqdm.write("F1 score   : {}".format(scores[0]))
+                        tqdm.write("Accuracy   : {}".format(scores[1]))
+                        tqdm.write("Precision  : {}".format(scores[2]))
+                        tqdm.write("Recall     : {}".format(scores[3]))
+
+                        # Reset all values of cm
+                        cm = np.array([0, 0, 0, 0])
 
     def test(self, data, save_dir=None):
         # Initialize path
@@ -305,11 +318,11 @@ if __name__ == "__main__":
     trainee.train(data=data, fine_tune=False)
 
     # Testing
-    test_data = Data(bert_tokenizer=bert_tokenizer)
-    test_samples = test_data.load_from_file(config.test_data_file)
-    test_data.data_to_bert_input(test_samples)
-
-    trainee.test(data=test_data)
+    # test_data = Data(bert_tokenizer=bert_tokenizer)
+    # test_samples = test_data.load_from_file(config.test_data_file)
+    # test_data.data_to_bert_input(test_samples)
+    #
+    # trainee.test(data=test_data)
 
 
 

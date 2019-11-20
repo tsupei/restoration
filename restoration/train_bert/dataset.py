@@ -103,16 +103,17 @@ class Data(object):
                 features.append(indexed_tokens)
                 segments.append(segment_tokens)
                 attns.append(attn_tokens)
-                targets.append(cell["target"])
+                targets.append(cell["target"][:config.max_len])
                 pbar.update(1)
 
         # Show the first sample to make sure data is handled in a right way
         ori = self.bert_tokenizer.convert_ids_to_tokens(features[0])
         logger.info("Length of feature: {}".format(len(features[0])))
         logger.info("Length of target : {}".format(len(targets[0])))
+        logger.info("Origin Sentence  : {}".format("".format(ori)))
         for idx, tag in enumerate(targets[0]):
             if tag == 1:
-                logger.info("{}".format(ori[idx]))
+                logger.info("[Position {}]{}".format(idx, ori[idx]))
 
         self.features = features
         self.targets = targets
