@@ -206,7 +206,7 @@ class Trainee(object):
             confusion_matrix (numpy.array): [tp, tn, fp, fn]
         """
         values, index = torch.max(predicted_tag, dim=1)
-        pred_tag, gold_tag = index.numpy(), gold_tag.numpy()
+        pred_tag, gold_tag = index.to("cpu").numpy(), gold_tag.to("cpu").numpy()
 
         assert pred_tag.size == gold_tag.size
 
