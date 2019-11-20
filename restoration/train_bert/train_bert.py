@@ -6,9 +6,9 @@ from tqdm import tqdm
 import numpy as np
 import torch.nn.functional as F
 from transformers import BertModel, BertTokenizer
-from model import FeedForwardNeuralNetwork
-from dataset import Data
-from data_util import config
+from restoration.train_bert.model import FeedForwardNeuralNetwork
+from restoration.train_bert.dataset import Data
+from restoration.data_util import config
 
 logger = logging.getLogger("restoration")
 
@@ -54,27 +54,31 @@ class Trainee(object):
             classifier_parameters = list(self.ffnn_model.parameters())
         optimizer = torch.optim.Adam(classifier_parameters, lr=config.lr)
 
+        # Confusion Matrix
+        cm = np.array([0, 0, 0, 0])  # tp, tn, fp, fn
+
         # Per epoch 
         for epoch in range(config.total_epochs):
             num_of_batch = len(data_loader.dataset) // config.batch_size
             cnt = 1
             # Per batch
             with tqdm(total=num_of_batch) as pbar:
-                for feature, target in data_loader:
+                for feature, target, segments_tensors, attns_tensors in data_loader:
                     # Checkout device
                     feature, target = feature.to(self.device), target.to(self.device)
+                    segments_tensors = segments_tensors.to(self.device)
+                    attns_tensors = attns_tensors.to(self.device)
 
                     optimizer.zero_grad()
 
                     # BERT part
-                    segments_ids = np.zeros(list(feature.shape))
-                    segments_tensors = torch.tensor(segments_ids, dtype=torch.long)
-                    segments_tensors = segments_tensors.to(self.device)
                     if fine_tune:
                         self.bert_model.train()
                     else:
                         self.bert_model.eval()
-                    encoded_layers, _ = self.bert_model(feature, segments_tensors)
+                    encoded_layers, _ = self.bert_model(feature,
+                                                        attention_mask=attns_tensors,
+                                                        token_type_ids=segments_tensors)
                     encoded_layers.to(self.device)
 
                     # Tag classifier
@@ -89,9 +93,10 @@ class Trainee(object):
                             tag_loss = F.cross_entropy(tag, target[:, idx])
                         else:
                             tag_loss += F.cross_entropy(tag, target[:, idx])
+                        cm += self._cm(tag, target[:, idx])
 
                     # Loss output
-                    tag_loss = tag_loss / config.max_len
+                    # tag_loss = tag_loss / config.max_len
                     tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
 
                     if loss_stats and save_dir:
@@ -110,6 +115,12 @@ class Trainee(object):
                     optimizer.step()
                     cnt += 1
                     pbar.update(1)
+                    # Calculate scores including f1score, accuracy, precision, recall
+                    scores = self._score(cm)
+                    logger.info("F1 score   : {}".format(scores[0]))
+                    logger.info("Accuracy   : {}".format(scores[1]))
+                    logger.info("Precision  : {}".format(scores[2]))
+                    logger.info("Recall     : {}".format(scores[3]))
 
     def test(self, data, save_dir=None):
         # Initialize path
@@ -127,17 +138,22 @@ class Trainee(object):
                                  drop_last=True)
         num_of_batch = len(data_loader.dataset) / config.batch_size
         cnt = 1
+
+        # Confusion Matrix
+        cm = np.array([0, 0, 0, 0])  # tp, tn, fp, fn
+
         with tqdm(total=num_of_batch) as pbar:
-            for feature, target in data_loader:
+            for feature, target, segments_tensors, attns_tensors in data_loader:
                 # Checkout device
                 feature, target = feature.to(self.device), target.to(self.device)
+                segments_tensors = segments_tensors.to(self.device)
+                attns_tensors = attns_tensors.to(self.device)
 
                 # BERT part
-                segments_ids = np.zeros(list(feature.shape))
-                segments_tensors = torch.tensor(segments_ids, dtype=torch.long)
-                segments_tensors = segments_tensors.to(self.device)
                 self.bert_model.eval()
-                encoded_layers, _ = self.bert_model(feature, segments_tensors)
+                encoded_layers, _ = self.bert_model(feature,
+                                                    attention_mask=attns_tensors,
+                                                    token_type_ids=segments_tensors)
                 encoded_layers = encoded_layers.to(self.device)
 
                 # Tag classifier
@@ -153,9 +169,10 @@ class Trainee(object):
                         tag_loss = F.cross_entropy(tag, target[:, idx])
                     else:
                         tag_loss += F.cross_entropy(tag, target[:, idx])
+                    cm += self._cm(tag, target[:, idx])
 
                 # Loss output
-                tag_loss = tag_loss / config.max_len
+                # tag_loss = tag_loss / config.max_len
                 tqdm.write("[{}/{}] LOSS = {}".format(cnt, num_of_batch, tag_loss.item()))
 
                 if loss_stats and save_dir:
@@ -171,6 +188,72 @@ class Trainee(object):
                 # Step
                 cnt += 1
                 pbar.update(1)
+
+                # Calculate scores including f1score, accuracy, precision, recall
+                scores = self._score(cm)
+                logger.info("F1 score   : {}".format(scores[0]))
+                logger.info("Accuracy   : {}".format(scores[1]))
+                logger.info("Precision  : {}".format(scores[2]))
+                logger.info("Recall     : {}".format(scores[3]))
+
+    def _cm(self, predicted_tag, gold_tag):
+        """
+        Compute confusion matrix
+        Args:
+            predicted_tag (torch.tensor): shape = (batch_size, class_number)
+            gold_tag (torch.,tensor): (batch_size, class_number)
+        Returns:
+            confusion_matrix (numpy.array): [tp, tn, fp, fn]
+        """
+        values, index = torch.max(predicted_tag, dim=1)
+        pred_tag, gold_tag = index.numpy(), gold_tag.numpy()
+
+        assert pred_tag.size == gold_tag.size
+
+        # Calculate tp, tn, fp, fn
+        tp, tn, fp, fn = 0, 0, 0, 0
+        for i in range(pred_tag.size):
+            if pred_tag[i] == gold_tag[i]:
+                if pred_tag[i] == 0:
+                    tn += 1
+                else:
+                    tp += 1
+            else:
+                if pred_tag[i] == 1 and gold_tag[i] == 0:
+                    fp += 1
+                else:
+                    fn += 1
+
+        return np.array([tp, tn, fp, fn])
+
+    def _score(self, confusion_matrix):
+        """
+        Args:
+            confusion_matrix (numpy.array): [tp, tn, fp, fn]
+        Raises:
+            ValueError: zero division
+        Returns:
+            score (numpy.array): [f1score, accuracy, precision, recall]
+        """
+        tp, tn, fp, fn = confusion_matrix
+
+        if tp + fn == 0:
+            logger.warning("There are no positive examples! No way to get scores")
+            return np.array([0, 0, 0, 0])
+        if tp + fp == 0:
+            logger.warning("There are no samples predicted as positive! Either model is broken or \
+                             given data is not balanced")
+            return np.array([0, 0, 0, 0])
+        if tp == 0:
+            logger.warning("There are no true positive! Either model is broken or given data is not balanced")
+            return np.array([0, 0, 0, 0])
+
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+        accuracy = (tp + tn) / (tp + fp + tn + fn)
+        f1score = 2 * precision * recall / (precision + recall)
+
+        return np.array([f1score, accuracy, precision, recall])
 
     def load_model(self, filename):
         if torch.cuda.is_available():
@@ -204,6 +287,10 @@ class Trainee(object):
 
 
 if __name__ == "__main__":
+    # Logging Configuration
+    logging.basicConfig(format="%(asctime)s [%(threadName)s-%(process)d] %(levelname)-5s %(module)s - %(message)s",
+                        level=logging.INFO)
+
     # BERT
     bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
     bert_model = BertModel.from_pretrained(config.bert_file)
