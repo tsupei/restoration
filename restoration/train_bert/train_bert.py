@@ -55,8 +55,9 @@ class Trainee(object):
                                  drop_last=True)
 
         # Initialize optimizers of BERT and FFNN
-        bert_parameters = [p for n, p in list(self.bert_model.named_parameters())]
         if fine_tune:
+            logger.info(" 😳 Parameters of BERT will be updated! 😳 ")
+            bert_parameters = [p for n, p in list(self.bert_model.named_parameters())]
             classifier_parameters = bert_parameters + list(self.ffnn_model.parameters())
         else:
             classifier_parameters = list(self.ffnn_model.parameters())
@@ -150,6 +151,42 @@ class Trainee(object):
                     optimizer.step()
                     cnt += 1
                     pbar.update(1)
+
+    def predict(self, feature, segments_tensor, attns_tensor):
+        """
+        Args:
+            feature (str): A sentence which consists of 5 utterance in this form:
+            "sent1 sent2 sent3 sent4 sent5"
+        Returns:
+        """
+        # Checkout device
+        feature = feature.to(self.device)
+        segments_tensor = segments_tensor.to(self.device)
+        attns_tensor = attns_tensor.to(self.device)
+
+        # Unsqueeze to make batch size 1
+        feature = feature.unsqueeze(0)
+        segments_tensor = segments_tensor.unsqueeze(0)
+        attns_tensor = attns_tensor.unsqueeze(0)
+
+        # BERT Part
+        self.bert_model.eval()
+
+        encoded_layers, _ = self.bert_model(feature,
+                                            attention_mask=attns_tensor,
+                                            token_type_ids=segments_tensor)
+        encoded_layers.to(self.device)
+
+        # Feed Forward NN Part
+        self.ffnn_model.eval()
+        tags = np.zeros(config.max_len)
+        for idx in range(0, config.max_len):
+            indices = torch.tensor([idx], dtype=torch.long).to(self.device)
+            cls_feature = torch.index_select(encoded_layers, 1, indices)
+            tag = self.ffnn_model(cls_feature)
+            values, index = torch.max(tag, dim=1)
+            tags[idx] = index[0]
+        return tags
 
     def test(self, data, save_dir=None):
         # Initialize path
@@ -321,7 +358,6 @@ class Trainee(object):
         for key, value in to_save_dict.items():
             to_save_with_prefix['bert.' + key] = value
         torch.save(to_save_with_prefix, bert_file)
-        logger.info("save bert model to {}".format(bert_file))
         with open(bert_config, 'w') as f:
             f.write(model_to_save.config.to_json_string())
 
@@ -342,7 +378,15 @@ if __name__ == "__main__":
 
     # Training
     trainee = Trainee(bert_model=bert_model)
-    trainee.train(data=data, fine_tune=False, backup=True)
+    # trainee.train(data=data, fine_tune=True, backup=True)
+
+    # Predict
+    one_data = {
+        "feature": "大晚上的乃們不睡覺想幹嗎 氣炸了氣的我真的有在咬牙 喜聞樂見 頭沒有迅速去火的辦法氣着睡不着 出去跑幾圈真的"
+    }
+    one_feature, one_segment, one_attn = data.one_data_to_bert_input(one_data)
+    tags = trainee.predict(one_feature, one_segment, one_attn)
+    data.tag_to_word(one_feature, tags)
 
     # Testing
     # test_data = Data(bert_tokenizer=bert_tokenizer)

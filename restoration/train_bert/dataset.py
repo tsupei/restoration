@@ -93,6 +93,26 @@ class Data(object):
 
         return indexed_tokens, segment_tokens, attn_tokens
 
+    def tag_to_word(self, indexed_tokens, tags):
+        if isinstance(indexed_tokens, torch.Tensor):
+            indexed_tokens = indexed_tokens.to("cpu")
+            indexed_tokens = indexed_tokens.tolist()
+        ori = self.bert_tokenizer.convert_ids_to_tokens(indexed_tokens)
+        logger.info("Origin Sentence  : {}".format(" ".join(ori)))
+        words = []
+        for idx, tag in enumerate(tags):
+            if tag == 1:
+                logger.info("[Position {}]{}".format(idx, ori[idx]))
+                words.append((idx, ori[idx]))
+        return words
+
+    def one_data_to_bert_input(self, cell):
+        indexed_tokens, segment_tokens, attn_tokens = self.feature2vec(cell["feature"])
+
+        return torch.tensor(indexed_tokens), \
+               torch.tensor(segment_tokens, dtype=torch.long), \
+               torch.tensor(attn_tokens, dtype=torch.long)
+
     def data_to_bert_input(self, cells):
         features = []
         segments = []
@@ -111,10 +131,7 @@ class Data(object):
         ori = self.bert_tokenizer.convert_ids_to_tokens(features[0])
         logger.info("Length of feature: {}".format(len(features[0])))
         logger.info("Length of target : {}".format(len(targets[0])))
-        logger.info("Origin Sentence  : {}".format(" ".join(ori)))
-        for idx, tag in enumerate(targets[0]):
-            if tag == 1:
-                logger.info("[Position {}]{}".format(idx, ori[idx]))
+        self.tag_to_word(features[0], targets[0])
 
         self.features = features
         self.targets = targets
