@@ -350,7 +350,7 @@ class Trainee(object):
             raise FileNotFoundError("Specified Path is not found: {}".format(dir_name))
 
         bert_file = os.path.join(dir_name, "pytorch_model.bin")
-        bert_config = os.path.join(dir_name, "bert_config.json")
+        bert_config = os.path.join(dir_name, "config.json")
         model_to_save = self.bert_model.module if hasattr(self.bert_model, 'module') else self.bert_model
 
         to_save_dict = model_to_save.state_dict()
@@ -360,40 +360,3 @@ class Trainee(object):
         torch.save(to_save_with_prefix, bert_file)
         with open(bert_config, 'w') as f:
             f.write(model_to_save.config.to_json_string())
-
-
-if __name__ == "__main__":
-    # Logging Configuration
-    logging.basicConfig(format="%(asctime)s [%(threadName)s-%(process)d] %(levelname)-5s %(module)s - %(message)s",
-                        level=logging.INFO)
-
-    # BERT
-    bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
-    bert_model = BertModel.from_pretrained(config.bert_file)
-
-    # Data
-    data = Data(bert_tokenizer=bert_tokenizer)
-    samples = data.load_from_file(config.data_file)
-    data.data_to_bert_input(samples)
-
-    # Training
-    trainee = Trainee(bert_model=bert_model)
-    # trainee.train(data=data, fine_tune=True, backup=True)
-
-    # Predict
-    one_data = {
-        "feature": "大晚上的乃們不睡覺想幹嗎 氣炸了氣的我真的有在咬牙 喜聞樂見 頭沒有迅速去火的辦法氣着睡不着 出去跑幾圈真的"
-    }
-    one_feature, one_segment, one_attn = data.one_data_to_bert_input(one_data)
-    tags = trainee.predict(one_feature, one_segment, one_attn)
-    data.tag_to_word(one_feature, tags)
-
-    # Testing
-    # test_data = Data(bert_tokenizer=bert_tokenizer)
-    # test_samples = test_data.load_from_file(config.test_data_file)
-    # test_data.data_to_bert_input(test_samples)
-    #
-    # trainee.test(data=test_data)
-
-
-
