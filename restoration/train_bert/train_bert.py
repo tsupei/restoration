@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 import torch.nn.functional as F
+from torch.nn import DataParallel
 from transformers import BertModel, BertTokenizer
 from restoration.train_bert.model import FeedForwardNeuralNetwork
 from restoration.train_bert.dataset import Data
@@ -16,13 +17,14 @@ logger = logging.getLogger("restoration")
 class Trainee(object):
     def __init__(self, bert_model):
         super().__init__()
-        self.device, n_gpu = self._check_device()
+        self.device, self.n_gpu = self._check_device()
         self.bert_model = bert_model.to(self.device)
         self.ffnn_model = FeedForwardNeuralNetwork({
             "class-number": 2,
             "hidden-dimension": 768,
             "dropout-rate": 0.5
         }).to(self.device)
+        self._check_gpu_parallel()
 
     def _check_device(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,6 +32,12 @@ class Trainee(object):
             n_gpu = torch.cuda.device_count()
             return device, n_gpu
         return device, -1
+
+    def _check_gpu_parallel(self):
+        if self.n_gpu > 1:
+            logger.info(" 🧙‍ Using GPU Paralleling : {n_gpu} GPUs 🧙‍".format(n_gpu=self.n_gpu))
+            self.bert_model = DataParallel(self.bert_model, device_ids=list(range(self.n_gpu)), dim=0)
+            self.ffnn_model = DataParallel(self.ffnn_model, device_ids=list(range(self.n_gpu)), dim=0)
 
     def train(self, data, fine_tune=False, save_dir=None):
         # Initialize path
@@ -49,7 +57,7 @@ class Trainee(object):
         # Initialize optimizers of BERT and FFNN
         bert_parameters = [p for n, p in list(self.bert_model.named_parameters())]
         if fine_tune:
-            classifier_parameters = list(bert_parameters + self.ffnn_model.parameters())
+            classifier_parameters = bert_parameters + list(self.ffnn_model.parameters())
         else:
             classifier_parameters = list(self.ffnn_model.parameters())
         optimizer = torch.optim.Adam(classifier_parameters, lr=config.lr)
@@ -266,7 +274,7 @@ class Trainee(object):
             return np.array([0, 0, 0, 0])
         if tp + fp == 0:
             logger.warning("There are no samples predicted as positive! Either model is broken or \
-                             given data is not balanced")
+            given data is not balanced")
             return np.array([0, 0, 0, 0])
         if tp == 0:
             logger.warning("There are no true positive! Either model is broken or given data is not balanced")

@@ -8,6 +8,7 @@ from restoration.data_util import config
 
 logger = logging.getLogger("restoration")
 
+
 class Dataset(data.Dataset):
 
     def __init__(self, features, targets, segments, attns):
@@ -110,7 +111,7 @@ class Data(object):
         ori = self.bert_tokenizer.convert_ids_to_tokens(features[0])
         logger.info("Length of feature: {}".format(len(features[0])))
         logger.info("Length of target : {}".format(len(targets[0])))
-        logger.info("Origin Sentence  : {}".format("".format(ori)))
+        logger.info("Origin Sentence  : {}".format(" ".join(ori)))
         for idx, tag in enumerate(targets[0]):
             if tag == 1:
                 logger.info("[Position {}]{}".format(idx, ori[idx]))
