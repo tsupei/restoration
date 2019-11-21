@@ -39,7 +39,7 @@ class Trainee(object):
             self.bert_model = DataParallel(self.bert_model, device_ids=list(range(self.n_gpu)), dim=0)
             self.ffnn_model = DataParallel(self.ffnn_model, device_ids=list(range(self.n_gpu)), dim=0)
 
-    def train(self, data, fine_tune=False, save_dir=None):
+    def train(self, data, fine_tune=False, save_dir=None, backup=False):
         # Initialize path
         loss_stats = None
         if save_dir:
@@ -110,10 +110,29 @@ class Trainee(object):
                             tag_loss += F.cross_entropy(tag, target[:, idx])
                         cm += self._cm(tag, target[:, idx])
 
-                    # Loss output
-                    # tag_loss = tag_loss / config.max_len
                     if cnt % log_interval == 0:
+                        # Save Model
+                        if backup:
+                            logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
+                                                                                         config.trained_model_file))
+                            self.save_model(config.trained_model_file)
+                            logger.info("[Epoch {}][Step {}/{}] Save bert to {}".format(epoch, cnt, num_of_batch,
+                                                                                        config.trained_bert_file))
+                            self.save_bert(config.trained_bert_file)
+
+                        # Loss output
+                        # tag_loss = tag_loss / config.max_len
                         tqdm.write("[{}/{}] LOSS = {:.3f}".format(cnt, num_of_batch, tag_loss.item()))
+
+                        # Calculate scores including f1score, accuracy, precision, recall
+                        scores = self._score(cm)
+                        tqdm.write("F1 score   : {:.3f}".format(scores[0]))
+                        tqdm.write("Accuracy   : {:.3f}".format(scores[1]))
+                        tqdm.write("Precision  : {:.3f}".format(scores[2]))
+                        tqdm.write("Recall     : {:.3f}".format(scores[3]))
+
+                        # Reset all values of cm
+                        cm = np.array([0, 0, 0, 0])
 
                     if loss_stats and save_dir:
                         if not os.path.exists(loss_stats):
@@ -126,17 +145,6 @@ class Trainee(object):
                                 file.write("\n")
 
                     tag_loss.backward()
-
-                    # Calculate scores including f1score, accuracy, precision, recall
-                    if cnt % log_interval == 0:
-                        scores = self._score(cm)
-                        tqdm.write("F1 score   : {:.3f}".format(scores[0]))
-                        tqdm.write("Accuracy   : {:.3f}".format(scores[1]))
-                        tqdm.write("Precision  : {:.3f}".format(scores[2]))
-                        tqdm.write("Recall     : {:.3f}".format(scores[3]))
-
-                        # Reset all values of cm
-                        cm = np.array([0, 0, 0, 0])
 
                     # Step
                     optimizer.step()
@@ -334,7 +342,7 @@ if __name__ == "__main__":
 
     # Training
     trainee = Trainee(bert_model=bert_model)
-    trainee.train(data=data, fine_tune=False)
+    trainee.train(data=data, fine_tune=False, backup=True)
 
     # Testing
     # test_data = Data(bert_tokenizer=bert_tokenizer)
