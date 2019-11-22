@@ -128,7 +128,6 @@ class Data(object):
                 pbar.update(1)
 
         # Show the first sample to make sure data is handled in a right way
-        ori = self.bert_tokenizer.convert_ids_to_tokens(features[0])
         logger.info("Length of feature: {}".format(len(features[0])))
         logger.info("Length of target : {}".format(len(targets[0])))
         self.tag_to_word(features[0], targets[0])

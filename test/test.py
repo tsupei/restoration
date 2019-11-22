@@ -23,7 +23,25 @@ def train():
     trainee = Trainee(bert_model=bert_model)
     trainee.train(data=data, fine_tune=True, backup=True)
 
-def predcit():
+def mini_train(mtz=5000):
+    # BERT
+    bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
+    bert_model = BertModel.from_pretrained(config.bert_file)
+
+    # Data
+    data = Data(bert_tokenizer=bert_tokenizer)
+    samples = data.load_from_file(config.data_file)
+    t_mini_trains = len(samples) // mtz
+
+    # Training
+    trainee = Trainee(bert_model=bert_model)
+
+    for i in range(t_mini_trains):
+        data.data_to_bert_input(samples[i*mtz : (i+1)*mtz])
+        trainee.train(data=data, fine_tune=True, backup=True)
+
+
+def predict():
     # BERT
     bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
     bert_model = BertModel.from_pretrained(config.bert_file)
@@ -33,6 +51,7 @@ def predcit():
 
     # Invoke Trainee
     trainee = Trainee(bert_model=bert_model)
+    trainee.
 
     # Predict
     one_data = {
@@ -42,6 +61,7 @@ def predcit():
     tags = trainee.predict(one_feature, one_segment, one_attn)
     words = data.tag_to_word(one_feature, tags)
     logging.info("Predict Words: {}".format(words))
+
 
 if __name__ == "__main__":
     train()

@@ -6,9 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import torch.nn.functional as F
 from torch.nn import DataParallel
-from transformers import BertModel, BertTokenizer
 from restoration.train_bert.model import FeedForwardNeuralNetwork
-from restoration.train_bert.dataset import Data
 from restoration.data_util import config
 
 logger = logging.getLogger("restoration")
@@ -25,6 +23,7 @@ class Trainee(object):
             "dropout-rate": 0.5
         }).to(self.device)
         self._check_gpu_parallel()
+        self._memory_monitor("Model Loaded")
 
     def _check_device(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,6 +37,15 @@ class Trainee(object):
             logger.info(" 🧙‍ Using GPU Paralleling : {n_gpu} GPUs 🧙‍".format(n_gpu=self.n_gpu))
             self.bert_model = DataParallel(self.bert_model, device_ids=list(range(self.n_gpu)), dim=0)
             self.ffnn_model = DataParallel(self.ffnn_model, device_ids=list(range(self.n_gpu)), dim=0)
+
+    def _memory_monitor(self, stage_name):
+        if str(self.device) != "cuda":
+            return
+        logger.debug(" -*- Memory Monitor -*- ")
+        logger.debug(" Stage: {}".format(stage_name))
+        for i in range(self.n_gpu):
+            logger.debug(" [cuda {}] Peak Memory Usage of Device     {}".format(i, torch.cuda.max_memory_allocated(device=i)))
+            logger.debug(" [cuda {}] Current Memory Usage of Device  {}".format(i, torch.cuda.memory_allocated(device=i)))
 
     def train(self, data, fine_tune=False, save_dir=None, backup=False):
         # Initialize path
@@ -60,6 +68,7 @@ class Trainee(object):
             bert_parameters = [p for n, p in list(self.bert_model.named_parameters())]
             classifier_parameters = bert_parameters + list(self.ffnn_model.parameters())
         else:
+            logger.info(" 😟 Parameters of BERT will 'NOT' be updated! 😟 ")
             classifier_parameters = list(self.ffnn_model.parameters())
         optimizer = torch.optim.Adam(classifier_parameters, lr=config.lr)
 
