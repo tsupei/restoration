@@ -110,16 +110,32 @@ class Trainee(object):
                     # Tag classifier
                     self.ffnn_model.train()
                     tag_loss = None
-                    for idx in range(0, config.max_len):
-                        indices = torch.tensor([idx], dtype=torch.long).to(self.device)
-                        cls_feature = torch.index_select(encoded_layers, 1, indices)
-                        tag = self.ffnn_model(cls_feature)
 
-                        if tag_loss is None:
-                            tag_loss = F.cross_entropy(tag, target[:, idx])
-                        else:
-                            tag_loss += F.cross_entropy(tag, target[:, idx])
-                        cm += self._cm(tag, target[:, idx])
+                    # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
+                    cls_feature = encoded_layers.view(-1, 768)
+
+                    tag = self.ffnn_model(cls_feature)
+
+                    # Recover the shape and swap axis 1,2 to fit the format of cross entropy
+                    tag = tag.view(config.batch_size, config.max_len, -1)
+                    tag = tag.permute(0, 2, 1)
+
+                    if tag_loss is None:
+                        tag_loss = F.cross_entropy(tag, target)
+                    else:
+                        tag_loss += F.cross_entropy(tag, target)
+
+                    # Old Version: Use lopp to traversal all positions
+                    # for idx in range(0, config.max_len):
+                    #     indices = torch.tensor([idx], dtype=torch.long).to(self.device)
+                    #     cls_feature = torch.index_select(encoded_layers, 1, indices)
+                    #     tag = self.ffnn_model(cls_feature)
+                    #
+                    #     if tag_loss is None:
+                    #         tag_loss = F.cross_entropy(tag, target[:, idx])
+                    #     else:
+                    #         tag_loss += F.cross_entropy(tag, target[:, idx])
+                    #     cm += self._cm(tag, target[:, idx])
 
                     if cnt % log_interval == 0:
                         # Inspect Data
