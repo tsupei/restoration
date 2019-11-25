@@ -6,13 +6,16 @@ from restoration.data_util import config
 
 # Logging Configuration
 logging.basicConfig(format="%(asctime)s [%(threadName)s-%(process)d] %(levelname)-5s %(module)s - %(message)s",
-                        level=logging.INFO)
+                        level=logging.DEBUG)
 
 
-def train():
+def train(trained_bert=None, trained_ffnn=None):
     # BERT
     bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
-    bert_model = BertModel.from_pretrained(config.bert_file)
+    if trained_bert:
+        bert_model = BertModel.from_pretrained(config.trained_bert_file)
+    else:  
+        bert_model = BertModel.from_pretrained(config.bert_file)
 
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
@@ -21,7 +24,9 @@ def train():
 
     # Training
     trainee = Trainee(bert_model=bert_model)
-    trainee.train(data=data, fine_tune=True, backup=True)
+    if trained_ffnn:
+        trainee.load_model(config.trained_model_file)
+    trainee.train(data=data, save_dir=config.loss_stats , fine_tune=True, backup=True)
 
 def mini_train(mtz=5000):
     # BERT
@@ -51,7 +56,7 @@ def predict():
 
     # Invoke Trainee
     trainee = Trainee(bert_model=bert_model)
-    trainee.
+    trainee.load_model(config.trained_model_file)
 
     # Predict
     one_data = {

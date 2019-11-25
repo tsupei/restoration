@@ -44,8 +44,8 @@ class Trainee(object):
         logger.debug(" -*- Memory Monitor -*- ")
         logger.debug(" Stage: {}".format(stage_name))
         for i in range(self.n_gpu):
-            logger.debug(" [cuda {}] Peak Memory Usage of Device     {}".format(i, torch.cuda.max_memory_allocated(device=i)))
-            logger.debug(" [cuda {}] Current Memory Usage of Device  {}".format(i, torch.cuda.memory_allocated(device=i)))
+            logger.debug("[cuda {}] - Peak  Memory  Usage   {:.3f} M".format(i, torch.cuda.max_memory_allocated(device=i) / (1024*1024)))
+            logger.debug("[cuda {}] - Current Memory Usage  {:.3f} M".format(i, torch.cuda.memory_allocated(device=i) / (1024*1024)))
 
     def train(self, data, fine_tune=False, save_dir=None, backup=False):
         # Initialize path
@@ -59,7 +59,7 @@ class Trainee(object):
         data_loader = DataLoader(data.get_dataset(),
                                  batch_size=config.batch_size,
                                  shuffle=True,
-                                 num_workers=1,
+                                 num_workers=8,
                                  drop_last=True)
 
         # Initialize optimizers of BERT and FFNN
@@ -121,6 +121,8 @@ class Trainee(object):
                         cm += self._cm(tag, target[:, idx])
 
                     if cnt % log_interval == 0:
+                        # Memory Monitor
+                        self._memory_monitor("[STEP {}/{}] - Training".format(cnt, num_of_batch))
                         # Save Model
                         if backup:
                             logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
@@ -147,11 +149,11 @@ class Trainee(object):
                     if loss_stats and save_dir:
                         if not os.path.exists(loss_stats):
                             with open(loss_stats, 'w', encoding='utf8') as file:
-                                file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
+                                file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
                                 file.write("\n")
                         else:
                             with open(loss_stats, 'a', encoding='utf8') as file:
-                                file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
+                                file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
                                 file.write("\n")
 
                     tag_loss.backward()
