@@ -97,6 +97,9 @@ class Data(object):
         if isinstance(indexed_tokens, torch.Tensor):
             indexed_tokens = indexed_tokens.to("cpu")
             indexed_tokens = indexed_tokens.tolist()
+        if isinstance(tags, torch.Tensor):
+            tags = tags.to("cpu")
+            tags = tags.tolist()
         ori = self.bert_tokenizer.convert_ids_to_tokens(indexed_tokens)
         logger.info("Origin Sentence  : {}".format(" ".join(ori)))
         words = []

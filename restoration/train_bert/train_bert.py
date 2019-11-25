@@ -21,7 +21,8 @@ class Trainee(object):
             "class-number": 2,
             "hidden-dimension": 768,
             "dropout-rate": 0.5
-        }).to(self.device)
+        })
+        self.ffnn_model = self.ffnn_model.to(self.device)
         self._check_gpu_parallel()
         self._memory_monitor("Model Loaded")
 
@@ -121,6 +122,9 @@ class Trainee(object):
                         cm += self._cm(tag, target[:, idx])
 
                     if cnt % log_interval == 0:
+                        # Inspect Data
+                        data.tag_to_word(feature[0], target[0])
+
                         # Memory Monitor
                         self._memory_monitor("[STEP {}/{}] - Training".format(cnt, num_of_batch))
                         # Save Model
