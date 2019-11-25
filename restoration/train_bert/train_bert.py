@@ -126,8 +126,8 @@ class Trainee(object):
                         # Save Model
                         if backup:
                             logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
-                                                                                         config.trained_model_file))
-                            self.save_model(config.trained_model_file)
+                                                                                         config.trained_ffnn_file))
+                            self.save_model(config.trained_ffnn_file)
                             logger.info("[Epoch {}][Step {}/{}] Save bert to {}".format(epoch, cnt, num_of_batch,
                                                                                         config.trained_bert_file))
                             self.save_bert(config.trained_bert_file)

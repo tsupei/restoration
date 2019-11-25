@@ -9,13 +9,10 @@ logging.basicConfig(format="%(asctime)s [%(threadName)s-%(process)d] %(levelname
                         level=logging.DEBUG)
 
 
-def train(trained_bert=None, trained_ffnn=None):
+def train(pretrained_ffnn=None):
     # BERT
-    bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
-    if trained_bert:
-        bert_model = BertModel.from_pretrained(config.trained_bert_file)
-    else:  
-        bert_model = BertModel.from_pretrained(config.bert_file)
+    bert_tokenizer = BertTokenizer.from_pretrained(config.pretrained_bert_file)
+    bert_model = BertModel.from_pretrained(config.pretrained_bert_file)
 
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
@@ -24,14 +21,15 @@ def train(trained_bert=None, trained_ffnn=None):
 
     # Training
     trainee = Trainee(bert_model=bert_model)
-    if trained_ffnn:
-        trainee.load_model(config.trained_model_file)
-    trainee.train(data=data, save_dir=config.loss_stats , fine_tune=True, backup=True)
+    if pretrained_ffnn:
+        trainee.load_model(config.pretrained_ffnn_file)
+    trainee.train(data=data, save_dir=config.loss_stats, fine_tune=True, backup=True)
+
 
 def mini_train(mtz=5000):
     # BERT
-    bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
-    bert_model = BertModel.from_pretrained(config.bert_file)
+    bert_tokenizer = BertTokenizer.from_pretrained(config.pretrained_bert_file)
+    bert_model = BertModel.from_pretrained(config.pretrained_bert_file)
 
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
@@ -48,15 +46,15 @@ def mini_train(mtz=5000):
 
 def predict():
     # BERT
-    bert_tokenizer = BertTokenizer.from_pretrained(config.bert_file)
-    bert_model = BertModel.from_pretrained(config.bert_file)
+    bert_tokenizer = BertTokenizer.from_pretrained(config.pretrained_bert_file)
+    bert_model = BertModel.from_pretrained(config.pretrained_bert_file)
 
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
 
     # Invoke Trainee
     trainee = Trainee(bert_model=bert_model)
-    trainee.load_model(config.trained_model_file)
+    trainee.load_model(config.pretrained_ffnn_file)
 
     # Predict
     one_data = {
@@ -69,4 +67,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    train()
+    train(pretrained_ffnn=True)
