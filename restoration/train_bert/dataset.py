@@ -52,10 +52,36 @@ class Data(object):
             for sample in data:
                 a_train_sample = {
                     "feature": sample["context"] + " " + sample["utterance"],
-                    "target": [0] + sample["tagging"] + [0] * (config.max_len-len(sample["tagging"])-1)
+                    "omit_words": sample["omit_words"]
                 }
                 samples.append(a_train_sample)
         return samples
+
+    def generate_tagging_target(self, omit_words, indexed_tokens):
+        indexed_words = []
+        for omit_word in omit_words:
+            word_tokens = self.bert_tokenizer.tokenize(omit_word)
+            word_tokens = self.bert_tokenizer.convert_tokens_to_ids(word_tokens)
+            indexed_words.append(word_tokens)
+
+        tagging = [0] * len(indexed_tokens)
+        for iow in indexed_words:
+            if iow[0] not in indexed_tokens:
+                continue
+            pos = indexed_tokens.index(iow[0])
+            while pos != -1:
+                for i in range(len(iow)):
+                    if pos+i >= len(indexed_tokens):
+                        break
+                    if iow[i] == indexed_tokens[pos+i]:
+                        tagging[pos+i] = 1
+                    else:
+                        break
+                if iow[0] not in indexed_tokens[pos+1:]:
+                    pos = -1
+                else:
+                    pos = pos+1 + indexed_tokens[pos+1:].index(iow[0])
+        return tagging
 
     def feature2vec(self, sent):
         # Space character will be turned into <SEP>
@@ -75,7 +101,6 @@ class Data(object):
                 segment_tokens.extend([0] * (len(a_token) + 1))
             else:
                 segment_tokens.extend([1] * (len(a_token) + 1))
-
         # Attention tokens for ignoring padding
         attn_tokens = [1] * len(tokens)
 
@@ -127,7 +152,7 @@ class Data(object):
                 features.append(indexed_tokens)
                 segments.append(segment_tokens)
                 attns.append(attn_tokens)
-                targets.append(cell["target"][:config.max_len])
+                targets.append(self.generate_tagging_target(cell["omit_words"], indexed_tokens))
                 pbar.update(1)
 
         # Show the first sample to make sure data is handled in a right way
