@@ -140,21 +140,13 @@ class Trainee(object):
                     _target = target.view(-1, 1)
                     cm += self._cm(_tag, _target)
 
-                    # Old Version: Use loop to traversal all positions
-                    # for idx in range(0, config.max_len):
-                    #     indices = torch.tensor([idx], dtype=torch.long).to(self.device)
-                    #     cls_feature = torch.index_select(encoded_layers, 1, indices)
-                    #     tag = self.ffnn_model(cls_feature)
-                    #
-                    #     if tag_loss is None:
-                    #         tag_loss = F.cross_entropy(tag, target[:, idx])
-                    #     else:
-                    #         tag_loss += F.cross_entropy(tag, target[:, idx])
-                    #     cm += self._cm(tag, target[:, idx])
-
                     if cnt % log_interval == 0:
                         # Inspect Data
+                        logger.info(" === Answer === ")
                         data.tag_to_word(feature[0], target[0])
+                        logger.info(" ===  Pred  === ")
+                        values, index = torch.max(tag[0], dim=1)
+                        data.tag_to_word(feature[0], index)
 
                         # Memory Monitor
                         self._memory_monitor("[STEP {}/{}] - Training".format(cnt, num_of_batch))
@@ -188,16 +180,6 @@ class Trainee(object):
                         cm = np.array([0, 0, 0, 0])
 
                     self.save_stats(save_dir, "loss.txt", epoch, num_of_batch, cnt, tag_loss.item())
-
-                    # if loss_stats and save_dir:
-                    #     if not os.path.exists(loss_stats):
-                    #         with open(loss_stats, 'w', encoding='utf8') as file:
-                    #             file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
-                    #             file.write("\n")
-                    #     else:
-                    #         with open(loss_stats, 'a', encoding='utf8') as file:
-                    #             file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
-                    #             file.write("\n")
 
                     tag_loss.backward()
 
@@ -248,14 +230,6 @@ class Trainee(object):
         tag = tag.view(-1, 2)
         values, index = torch.max(tag, dim=1)
         return index
-
-        # for idx in range(0, config.max_len):
-        #     indices = torch.tensor([idx], dtype=torch.long).to(self.device)
-        #     cls_feature = torch.index_select(encoded_layers, 1, indices)
-        #     tag = self.ffnn_model(cls_feature)
-        #     values, index = torch.max(tag, dim=1)
-        #     tags[idx] = index[0]
-        # return tags
 
     def set_seed(self, seed):
         os.environ['PYTHONHASHSEED'] = str(seed)
