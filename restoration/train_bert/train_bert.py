@@ -48,13 +48,23 @@ class Trainee(object):
             logger.debug("[cuda {}] - Peak  Memory  Usage   {:.3f} M".format(i, torch.cuda.max_memory_allocated(device=i) / (1024*1024)))
             logger.debug("[cuda {}] - Current Memory Usage  {:.3f} M".format(i, torch.cuda.memory_allocated(device=i) / (1024*1024)))
 
+    def save_stats(self, save_dir, filename, epoch, num_of_batch, cnt, value):
+        path_to_file = os.path.join(save_dir, filename)
+        if filename and save_dir:
+            if not os.path.exists(path_to_file):
+                with open(path_to_file, 'w', encoding='utf8') as file:
+                    file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, value))
+                    file.write("\n")
+            else:
+                with open(path_to_file, 'a', encoding='utf8') as file:
+                    file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, value))
+                    file.write("\n")
+
     def train(self, data, fine_tune=False, save_dir=None, backup=False):
         # Initialize path
-        loss_stats = None
         if save_dir:
             if not os.path.exists(save_dir):
                 raise FileNotFoundError("save_dir is specified but not found: {}".format(save_dir))
-            loss_stats = os.path.join(save_dir, "loss.txt")
 
         # Initialize data loader
         data_loader = DataLoader(data.get_dataset(),
@@ -164,18 +174,26 @@ class Trainee(object):
                         tqdm.write("Precision  : {:.3f}".format(scores[2]))
                         tqdm.write("Recall     : {:.3f}".format(scores[3]))
 
+                        # Saving to file
+                        self.save_stats(save_dir, "f1_score.txt", epoch, num_of_batch, cnt, scores[0])
+                        self.save_stats(save_dir, "accuracy.txt", epoch, num_of_batch, cnt, scores[1])
+                        self.save_stats(save_dir, "precision.txt", epoch, num_of_batch, cnt, scores[2])
+                        self.save_stats(save_dir, "recall.txt", epoch, num_of_batch, cnt, scores[3])
+
                         # Reset all values of cm
                         cm = np.array([0, 0, 0, 0])
 
-                    if loss_stats and save_dir:
-                        if not os.path.exists(loss_stats):
-                            with open(loss_stats, 'w', encoding='utf8') as file:
-                                file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
-                                file.write("\n")
-                        else:
-                            with open(loss_stats, 'a', encoding='utf8') as file:
-                                file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
-                                file.write("\n")
+                    self.save_stats(save_dir, "loss.txt", epoch, num_of_batch, cnt, tag_loss.item())
+
+                    # if loss_stats and save_dir:
+                    #     if not os.path.exists(loss_stats):
+                    #         with open(loss_stats, 'w', encoding='utf8') as file:
+                    #             file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
+                    #             file.write("\n")
+                    #     else:
+                    #         with open(loss_stats, 'a', encoding='utf8') as file:
+                    #             file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, tag_loss.item()))
+                    #             file.write("\n")
 
                     tag_loss.backward()
 
