@@ -62,6 +62,9 @@ class Trainee(object):
                     file.write("\n")
 
     def train(self, data, fine_tune=False, save_dir=None, backup=False):
+        # For consistent model
+        self.set_seed(1)
+
         # Initialize path
         if save_dir:
             if not os.path.exists(save_dir):
@@ -221,7 +224,10 @@ class Trainee(object):
         feature = feature.unsqueeze(0)
         segments_tensor = segments_tensor.unsqueeze(0)
         attns_tensor = attns_tensor.unsqueeze(0)
+
+        # consistent
         self.set_seed(1)
+
         # BERT Part
         self.bert_model.eval()
 
