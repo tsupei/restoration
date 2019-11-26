@@ -13,9 +13,9 @@ logger = logging.getLogger("restoration")
 
 
 class Trainee(object):
-    def __init__(self, bert_model):
+    def __init__(self, bert_model, no_cuda=False):
         super().__init__()
-        self.device, self.n_gpu = self._check_device()
+        self.device, self.n_gpu = self._check_device(no_cuda=no_cuda)
         self.bert_model = bert_model.to(self.device)
         self.ffnn_model = FeedForwardNeuralNetwork({
             "class-number": 2,
@@ -27,7 +27,9 @@ class Trainee(object):
         self._memory_monitor("Model Loaded")
         self.set_seed(1)
 
-    def _check_device(self):
+    def _check_device(self, no_cuda):
+        if no_cuda:
+            return torch.device("cpu"), -1
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if str(device) == "cuda":
             n_gpu = torch.cuda.device_count()
@@ -89,6 +91,7 @@ class Trainee(object):
 
         # Confusion Matrix
         cm = np.array([0, 0, 0, 0])  # tp, tn, fp, fn
+        best_fscore = 0.0  # used for saving model
 
         # Per epoch 
         for epoch in range(config.total_epochs):
@@ -150,14 +153,6 @@ class Trainee(object):
 
                         # Memory Monitor
                         self._memory_monitor("[STEP {}/{}] - Training".format(cnt, num_of_batch))
-                        # Save Model
-                        if backup:
-                            logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
-                                                                                         config.trained_ffnn_file))
-                            self.save_model(config.trained_ffnn_file)
-                            logger.info("[Epoch {}][Step {}/{}] Save bert to {}".format(epoch, cnt, num_of_batch,
-                                                                                        config.trained_bert_file))
-                            self.save_bert(config.trained_bert_file)
 
                         # Loss output
                         # tag_loss = tag_loss / config.max_len
@@ -175,6 +170,19 @@ class Trainee(object):
                         self.save_stats(save_dir, "accuracy.txt", epoch, num_of_batch, cnt, scores[1])
                         self.save_stats(save_dir, "precision.txt", epoch, num_of_batch, cnt, scores[2])
                         self.save_stats(save_dir, "recall.txt", epoch, num_of_batch, cnt, scores[3])
+
+                        # Save Model
+                        if backup:
+                            if scores[0] > best_fscore:
+                                logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
+                                                                                             config.trained_ffnn_file))
+                                self.save_model(config.trained_ffnn_file)
+                                logger.info("[Epoch {}][Step {}/{}] Save bert to {}".format(epoch, cnt, num_of_batch,
+                                                                                            config.trained_bert_file))
+                                self.save_bert(config.trained_bert_file)
+                                best_fscore = scores[0]
+                            else:
+                                logger.info("[Epoch {}][Step {}/{}] Models are not saved! F1 score {} is lower than {}".format(epoch, cnt, num_of_batch, scores[0], best_fscore))
 
                         # Reset all values of cm
                         cm = np.array([0, 0, 0, 0])
