@@ -109,7 +109,6 @@ class Trainee(object):
 
                     # Tag classifier
                     self.ffnn_model.train()
-                    tag_loss = None
 
                     # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
                     cls_feature = encoded_layers.view(-1, 768)
@@ -118,14 +117,16 @@ class Trainee(object):
 
                     # Recover the shape and swap axis 1,2 to fit the format of cross entropy
                     tag = tag.view(config.batch_size, config.max_len, -1)
-                    tag = tag.permute(0, 2, 1)
+                    _tag = tag.permute(0, 2, 1)
 
-                    if tag_loss is None:
-                        tag_loss = F.cross_entropy(tag, target)
-                    else:
-                        tag_loss += F.cross_entropy(tag, target)
+                    tag_loss = F.cross_entropy(_tag, target, reduction="sum")
+                    tag_loss /= config.batch_size
 
-                    # Old Version: Use lopp to traversal all positions
+                    _tag = tag.view(-1, 2)
+                    _target = target.view(-1, 1)
+                    cm += self._cm(_tag, _target)
+
+                    # Old Version: Use loop to traversal all positions
                     # for idx in range(0, config.max_len):
                     #     indices = torch.tensor([idx], dtype=torch.long).to(self.device)
                     #     cls_feature = torch.index_select(encoded_layers, 1, indices)
@@ -210,14 +211,24 @@ class Trainee(object):
 
         # Feed Forward NN Part
         self.ffnn_model.eval()
-        tags = np.zeros(config.max_len)
-        for idx in range(0, config.max_len):
-            indices = torch.tensor([idx], dtype=torch.long).to(self.device)
-            cls_feature = torch.index_select(encoded_layers, 1, indices)
-            tag = self.ffnn_model(cls_feature)
-            values, index = torch.max(tag, dim=1)
-            tags[idx] = index[0]
-        return tags
+
+        # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
+        cls_feature = encoded_layers.view(-1, 768)
+
+        tag = self.ffnn_model(cls_feature)
+
+        # Recover the shape
+        tag = tag.view(-1, 2)
+        values, index = torch.max(tag, dim=1)
+        return index
+
+        # for idx in range(0, config.max_len):
+        #     indices = torch.tensor([idx], dtype=torch.long).to(self.device)
+        #     cls_feature = torch.index_select(encoded_layers, 1, indices)
+        #     tag = self.ffnn_model(cls_feature)
+        #     values, index = torch.max(tag, dim=1)
+        #     tags[idx] = index[0]
+        # return tags
 
     def test(self, data, save_dir=None):
         # Initialize path
