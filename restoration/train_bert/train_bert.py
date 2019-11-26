@@ -393,15 +393,18 @@ class Trainee(object):
     def load_model(self, filename):
         if str(self.device) == "cuda":
             model_state = torch.load(filename)
+            self.ffnn_model.load_state_dict(model_state, strict=False)
+            self.ffnn_model.to(self.device)
         else:
             model_state = torch.load(filename, map_location="cpu")
-
-        self.ffnn_model.load_state_dict(model_state, strict=False)
-        self.ffnn_model.to(self.device)
+            self.ffnn_model.load_state_dict(model_state, strict=False)
         self.ffnn_model.eval()
 
     def save_model(self, filename):
-        torch.save(self.ffnn_model.state_dict(), filename)
+        if self.n_gpu > 1:
+            torch.save(self.ffnn_model.module.state_dict(), filename)
+        else:
+            torch.save(self.ffnn_model.state_dict(), filename)
 
     def save_bert(self, dir_name):
         if not self.bert_model:

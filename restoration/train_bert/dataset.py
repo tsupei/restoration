@@ -2,6 +2,7 @@
 import logging
 import json
 import torch
+import re
 from tqdm import tqdm
 import torch.utils.data as data
 from restoration.data_util import config
@@ -87,7 +88,8 @@ class Data(object):
         # Space character will be turned into <SEP>
         tokens = []
         segment_tokens = [0]
-        sents = sent.split(" ")
+        sents = re.split(r"[\s\t]", sent)
+
         tokens.append("[CLS]")
 
         # print(len(sents), sents)
