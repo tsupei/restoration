@@ -227,8 +227,6 @@ class Trainee(object):
         encoded_layers.to(self.device)
 
         # Feed Forward NN Part
-        self.ffnn_model.eval()
-
         # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
         cls_feature = encoded_layers.view(-1, 768)
 
@@ -393,12 +391,14 @@ class Trainee(object):
         return np.array([f1score, accuracy, precision, recall])
 
     def load_model(self, filename):
-        if torch.cuda.is_available():
+        if str(self.device) == "cuda":
             model_state = torch.load(filename)
         else:
             model_state = torch.load(filename, map_location="cpu")
 
         self.ffnn_model.load_state_dict(model_state, strict=False)
+        self.ffnn_model.to(self.device)
+        self.ffnn_model.eval()
 
     def save_model(self, filename):
         torch.save(self.ffnn_model.state_dict(), filename)
