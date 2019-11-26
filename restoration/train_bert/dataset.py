@@ -130,6 +130,8 @@ class Data(object):
         words = []
         for idx, tag in enumerate(tags):
             if tag == 1:
+                if ori[idx] == '[PAD]':
+                    continue
                 logger.info("[Position {}]{}".format(idx, ori[idx]))
                 words.append((idx, ori[idx]))
         return words

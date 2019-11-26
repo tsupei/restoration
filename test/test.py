@@ -17,7 +17,7 @@ def train(pretrained_ffnn=None):
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
     samples = data.load_from_file(config.data_file)
-    data.data_to_bert_input(samples)
+    data.data_to_bert_input(samples[:20000])
 
     # Training
     trainee = Trainee(bert_model=bert_model)
@@ -58,13 +58,21 @@ def predict():
 
     # Predict
     one_data = {
-        "feature": "湖南有哪裏可以學習做甜品呀 我自己都想開在這裏 你也想開甜品店在長沙 長沙恐怕開不起來要回岳陽開 哈哈哈哈什麼時候開呀我一定去光顧"
+        "feature": "明明沒有很愛很愛一個人卻一直想逼他做我男朋友 你想太多了呵呵 日貴妃好重口味 那只是一個夢而已重嗎 你喜歡"
     }
     one_feature, one_segment, one_attn = data.one_data_to_bert_input(one_data)
+
+    # DEBUG: 
+    logging.debug("Feature: {}".format(one_feature))
+    logging.debug("Segment: {}".format(one_segment))
+    logging.debug("Attent : {}".format(one_attn))
+
     tags = trainee.predict(one_feature, one_segment, one_attn)
+    logging.debug("Predict: {}".format(tags))
     words = data.tag_to_word(one_feature, tags)
     logging.info("Predict Words: {}".format(words))
 
 
 if __name__ == "__main__":
-    train()
+    # train(True)
+    predict()

@@ -25,6 +25,7 @@ class Trainee(object):
         self.ffnn_model = self.ffnn_model.to(self.device)
         self._check_gpu_parallel()
         self._memory_monitor("Model Loaded")
+        self.set_seed(1)
 
     def _check_device(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -209,6 +210,8 @@ class Trainee(object):
             "sent1 sent2 sent3 sent4 sent5"
         Returns:
         """
+        # Set seed
+        # self.set_seed(1)
         # Checkout device
         feature = feature.to(self.device)
         segments_tensor = segments_tensor.to(self.device)
@@ -218,7 +221,7 @@ class Trainee(object):
         feature = feature.unsqueeze(0)
         segments_tensor = segments_tensor.unsqueeze(0)
         attns_tensor = attns_tensor.unsqueeze(0)
-
+        self.set_seed(1)
         # BERT Part
         self.bert_model.eval()
 
@@ -248,7 +251,16 @@ class Trainee(object):
         #     tags[idx] = index[0]
         # return tags
 
+    def set_seed(self, seed):
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if self.n_gpu > 0:
+            torch.cuda.manual_seed_all(seed)
+
     def test(self, data, save_dir=None):
+        # Set seed
+        self.set_seed(1)
         # Initialize path
         loss_stats = None
         if save_dir:
