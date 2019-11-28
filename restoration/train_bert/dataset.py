@@ -92,7 +92,6 @@ class Data(object):
 
         tokens.append("[CLS]")
 
-        # print(len(sents), sents)
         assert len(sents) == 5
 
         for idx, a_sent in enumerate(sents):

@@ -260,7 +260,7 @@ class Trainee(object):
                                  shuffle=True,
                                  num_workers=1,
                                  drop_last=True)
-        num_of_batch = len(data_loader.dataset) / config.batch_size
+        num_of_batch = len(data_loader.dataset) // config.batch_size
         cnt = 1
 
         # Confusion Matrix
@@ -287,36 +287,28 @@ class Trainee(object):
 
                 # Tag classifier
                 self.ffnn_model.eval()
-                tag_loss = None
-                for idx in range(0, config.max_len):
-                    indices = torch.tensor([idx], dtype=torch.long)
-                    indices = indices.to(self.device)
-                    cls_feature = torch.index_select(encoded_layers, 1, indices)
-                    tag = self.ffnn_model(cls_feature)
+                # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
+                cls_feature = encoded_layers.view(-1, 768)
 
-                    if tag_loss is None:
-                        tag_loss = F.cross_entropy(tag, target[:, idx])
-                    else:
-                        tag_loss += F.cross_entropy(tag, target[:, idx])
-                    cm += self._cm(tag, target[:, idx])
+                tag = self.ffnn_model(cls_feature)
 
-                # Loss output
-                # tag_loss = tag_loss / config.max_len
-                if cnt % log_interval == 0:
-                    tqdm.write("[{}/{}] LOSS = {:.3f}".format(cnt, num_of_batch, tag_loss.item()))
+                # Recover the shape and swap axis 1,2 to fit the format of cross entropy
+                tag = tag.view(config.batch_size, config.max_len, -1)
+                _tag = tag.permute(0, 2, 1)
 
-                if loss_stats and save_dir:
-                    if not os.path.exists(loss_stats):
-                        with open(loss_stats, 'w', encoding='utf8') as file:
-                            file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
-                            file.write("\n")
-                    else:
-                        with open(loss_stats, 'a', encoding='utf8') as file:
-                            file.write("{}\t{}\t{}".format(num_of_batch, cnt, tag_loss.item()))
-                            file.write("\n")
+                tag_loss = F.cross_entropy(_tag, target, reduction="sum")
+                tag_loss /= config.batch_size
+
+                _tag = tag.view(-1, 2)
+                _target = target.view(-1, 1)
+                cm += self._cm(_tag, _target)
 
                 # Calculate scores including f1score, accuracy, precision, recall
                 if cnt % log_interval == 0:
+                    logger.info(" ===  Pred  === ")
+                    values, index = torch.max(tag[0], dim=1)
+                    data.tag_to_word(feature[0], index)
+
                     scores = self._score(cm)
                     tqdm.write("F1 score   : {:.3f}".format(scores[0]))
                     tqdm.write("Accuracy   : {:.3f}".format(scores[1]))
@@ -324,8 +316,21 @@ class Trainee(object):
                     tqdm.write("Recall     : {:.3f}".format(scores[3]))
                     tqdm.write("")
 
+                    # Saving to file
+                    self.save_stats(save_dir, "f1_score.txt", 0, num_of_batch, cnt, scores[0])
+                    self.save_stats(save_dir, "accuracy.txt", 0, num_of_batch, cnt, scores[1])
+                    self.save_stats(save_dir, "precision.txt", 0, num_of_batch, cnt, scores[2])
+                    self.save_stats(save_dir, "recall.txt", 0, num_of_batch, cnt, scores[3])
+
                     # Reset all values of cm
                     cm = np.array([0, 0, 0, 0])
+
+                # Loss output
+                # tag_loss = tag_loss / config.max_len
+                if cnt % log_interval == 0:
+                    tqdm.write("[{}/{}] LOSS = {:.3f}".format(cnt, num_of_batch, tag_loss.item()))
+
+                self.save_stats(save_dir, "loss.txt", 0, num_of_batch, cnt, tag_loss.item())
 
                 # Step
                 cnt += 1
