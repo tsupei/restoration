@@ -1,0 +1,5 @@
+epochs: 1
+bsz: 4
+lr: 0.001
+bert: ""
+ffnn: ""

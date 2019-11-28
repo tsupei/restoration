@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 from restoration.train_bert.model import FeedForwardNeuralNetwork
 from restoration.data_util import config
+from restoration.data_util.parameter import Parameter
 
 logger = logging.getLogger("restoration")
 
@@ -25,7 +26,6 @@ class Trainee(object):
         self.ffnn_model = self.ffnn_model.to(self.device)
         self._check_gpu_parallel()
         self._memory_monitor("Model Loaded")
-        self.set_seed(1)
 
     def _check_device(self, no_cuda):
         if no_cuda:
@@ -63,9 +63,12 @@ class Trainee(object):
                     file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, value))
                     file.write("\n")
 
-    def train(self, data, fine_tune=False, save_dir=None, backup=False):
+    def train(self, data, params, fine_tune=False, save_dir=None, backup=False):
         # For consistent model
         self.set_seed(1)
+
+        if not isinstance(params, Parameter):
+            raise TypeError("params should be type Parameter")
 
         # Initialize path
         if save_dir:
@@ -74,7 +77,7 @@ class Trainee(object):
 
         # Initialize data loader
         data_loader = DataLoader(data.get_dataset(),
-                                 batch_size=config.batch_size,
+                                 batch_size=params.bsz,
                                  shuffle=True,
                                  num_workers=8,
                                  drop_last=True)
@@ -87,15 +90,15 @@ class Trainee(object):
         else:
             logger.info(" 😟 Parameters of BERT will 'NOT' be updated! 😟 ")
             classifier_parameters = list(self.ffnn_model.parameters())
-        optimizer = torch.optim.Adam(classifier_parameters, lr=config.lr)
+        optimizer = torch.optim.Adam(classifier_parameters, lr=params.lr)
 
         # Confusion Matrix
         cm = np.array([0, 0, 0, 0])  # tp, tn, fp, fn
         best_fscore = 0.0  # used for saving model
 
         # Per epoch 
-        for epoch in range(config.total_epochs):
-            num_of_batch = len(data_loader.dataset) // config.batch_size
+        for epoch in range(params.epochs):
+            num_of_batch = len(data_loader.dataset) // params.bsz
 
             # Logging interval for loss, cm, ...
             log_interval = num_of_batch // config.log_time_ratio
@@ -133,11 +136,11 @@ class Trainee(object):
                     tag = self.ffnn_model(cls_feature)
 
                     # Recover the shape and swap axis 1,2 to fit the format of cross entropy
-                    tag = tag.view(config.batch_size, config.max_len, -1)
+                    tag = tag.view(params.bsz, config.max_len, -1)
                     _tag = tag.permute(0, 2, 1)
 
                     tag_loss = F.cross_entropy(_tag, target, reduction="sum")
-                    tag_loss /= config.batch_size
+                    tag_loss /= params.bsz
 
                     _tag = tag.view(-1, 2)
                     _target = target.view(-1, 1)
@@ -175,11 +178,11 @@ class Trainee(object):
                         if backup:
                             if scores[0] > best_fscore:
                                 logger.info("[Epoch {}][Step {}/{}] Save model to {}".format(epoch, cnt, num_of_batch,
-                                                                                             config.trained_ffnn_file))
-                                self.save_model(config.trained_ffnn_file)
+                                                                                             params.ffnn))
+                                self.save_model(params.ffnn)
                                 logger.info("[Epoch {}][Step {}/{}] Save bert to {}".format(epoch, cnt, num_of_batch,
-                                                                                            config.trained_bert_file))
-                                self.save_bert(config.trained_bert_file)
+                                                                                            params.bert))
+                                self.save_bert(params.bert)
                                 best_fscore = scores[0]
                             else:
                                 logger.info("[Epoch {}][Step {}/{}] Models are not saved! F1 score {} is lower than {}".format(epoch, cnt, num_of_batch, scores[0], best_fscore))
@@ -204,7 +207,8 @@ class Trainee(object):
         Returns:
         """
         # Set seed
-        # self.set_seed(1)
+        self.set_seed(1)
+
         # Checkout device
         feature = feature.to(self.device)
         segments_tensor = segments_tensor.to(self.device)
@@ -244,23 +248,25 @@ class Trainee(object):
         if self.n_gpu > 0:
             torch.cuda.manual_seed_all(seed)
 
-    def test(self, data, save_dir=None):
+    def test(self, data, params, save_dir=None):
         # Set seed
         self.set_seed(1)
+
+        if not isinstance(params, Parameter):
+            raise TypeError("params should be type Parameter")
+
         # Initialize path
-        loss_stats = None
         if save_dir:
             if not os.path.exists(save_dir):
                 raise FileNotFoundError("save_dir is specified but not found: {}".format(save_dir))
-            loss_stats = os.path.join(save_dir, "loss.txt")
 
         # Initialize data loader
         data_loader = DataLoader(data.get_dataset(),
-                                 batch_size=config.batch_size,
+                                 batch_size=params.bsz,
                                  shuffle=True,
                                  num_workers=1,
                                  drop_last=True)
-        num_of_batch = len(data_loader.dataset) // config.batch_size
+        num_of_batch = len(data_loader.dataset) // params.bsz
         cnt = 1
 
         # Confusion Matrix
@@ -293,11 +299,11 @@ class Trainee(object):
                 tag = self.ffnn_model(cls_feature)
 
                 # Recover the shape and swap axis 1,2 to fit the format of cross entropy
-                tag = tag.view(config.batch_size, config.max_len, -1)
+                tag = tag.view(params.bsz, config.max_len, -1)
                 _tag = tag.permute(0, 2, 1)
 
                 tag_loss = F.cross_entropy(_tag, target, reduction="sum")
-                tag_loss /= config.batch_size
+                tag_loss /= params.bsz
 
                 _tag = tag.view(-1, 2)
                 _target = target.view(-1, 1)
