@@ -20,7 +20,7 @@ class Trainee(object):
         self.bert_model = bert_model.to(self.device)
         self.ffnn_model = FeedForwardNeuralNetwork({
             "class-number": 2,
-            "hidden-dimension": 768,
+            "hidden-dimension": config.hidden_size,
             "dropout-rate": 0.5
         })
         self.ffnn_model = self.ffnn_model.to(self.device)
@@ -130,8 +130,9 @@ class Trainee(object):
                     # Tag classifier
                     self.ffnn_model.train()
 
+
                     # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
-                    cls_feature = encoded_layers.view(-1, 768)
+                    cls_feature = encoded_layers.view(-1, config.hidden_size)
 
                     tag = self.ffnn_model(cls_feature)
 
@@ -232,7 +233,7 @@ class Trainee(object):
 
         # Feed Forward NN Part
         # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
-        cls_feature = encoded_layers.view(-1, 768)
+        cls_feature = encoded_layers.view(-1, config.hidden_size)
 
         tag = self.ffnn_model(cls_feature)
 
@@ -294,7 +295,7 @@ class Trainee(object):
                 # Tag classifier
                 self.ffnn_model.eval()
                 # Merge batch-size and doc-size together (confix.batch_size * config.max_len)
-                cls_feature = encoded_layers.view(-1, 768)
+                cls_feature = encoded_layers.view(-1, config.hidden_size)
 
                 tag = self.ffnn_model(cls_feature)
 

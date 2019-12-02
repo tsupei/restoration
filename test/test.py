@@ -1,20 +1,40 @@
 import logging
 from transformers import BertModel, BertTokenizer
+from transformers import AlbertModel, AlbertTokenizer, AlbertConfig
 from restoration.train_bert.dataset import Data
 from restoration.train_bert.train_bert import Trainee
-from restoration.data_util import config
 from restoration.data_util.parameter import Parameter
 
 # Logging Configuration
 logging.basicConfig(format="%(asctime)s [%(threadName)s-%(process)d] %(levelname)-5s %(module)s - %(message)s",
                         level=logging.DEBUG)
 
-LOSS_DIR = ""
-PRETRAINED_BERT = ""
+LOSS_DIR = "./stats"
+PRETRAINED_BERT = "/Users/admin/Practice/restoration/model/beta"
 PRETRAINED_FFNN = ""
 SAVE_BERT = ""
 SAVE_FFNN = ""
-DATA_FILE = ""
+DATA_FILE = "/Users/admin/Practice/restoration/data/test_zh_tw.json"
+
+PRETRAINED_ALBERT = "/Users/admin/open-source-git/albert_tiny_489k"
+
+
+def albert_train():
+    # ALBERT
+    albert_tokenizer = BertTokenizer.from_pretrained(PRETRAINED_BERT)
+    albert_model = AlbertModel.from_pretrained(PRETRAINED_ALBERT)
+
+    # Parameter
+    params = Parameter(epochs=5, bsz=32, lr=0.000001, bert=SAVE_BERT, ffnn=SAVE_FFNN)
+
+    # Data
+    data = Data(bert_tokenizer=albert_tokenizer)
+    samples = data.load_from_file(DATA_FILE)
+    data.data_to_bert_input(samples[:20000])
+
+    # Train
+    trainee = Trainee(bert_model=albert_model)
+    trainee.train(data=data, params=params, save_dir=LOSS_DIR, fine_tune=True, backup=False)
 
 
 def train(pretrained_ffnn=None):
@@ -23,14 +43,14 @@ def train(pretrained_ffnn=None):
     bert_model = BertModel.from_pretrained(PRETRAINED_BERT)
 
     # Parameter
-    params = Parameter(epochs=5, bsz=3, lr=0.00001, bert=SAVE_BERT, ffnn=SAVE_FFNN)
+    params = Parameter(epochs=5, bsz=32, lr=0.00001, bert=SAVE_BERT, ffnn=SAVE_FFNN)
 
     # Data
     data = Data(bert_tokenizer=bert_tokenizer)
     samples = data.load_from_file(DATA_FILE)
     data.data_to_bert_input(samples[:20000])
 
-    # Training
+    # Train
     trainee = Trainee(bert_model=bert_model)
     if pretrained_ffnn:
         trainee.load_model(PRETRAINED_FFNN)
@@ -74,10 +94,10 @@ def predict(file=None, sent=None):
 
 
 if __name__ == "__main__":
-    # train(True)
-    predict(sent="什麼是心經啊 \
-心經經文組織嚴密有序，分段闡述空的意義和層次 \
-心經的緣由？ \
-華嚴經是釋尊成道之後，首先宣說的經典 \
-告訴我那是什麼")
+    albert_train()
+#     predict(sent="什麼是心經啊 \
+# 心經經文組織嚴密有序，分段闡述空的意義和層次 \
+# 心經的緣由？ \
+# 華嚴經是釋尊成道之後，首先宣說的經典 \
+# 告訴我那是什麼")
 # , file="/Users/admin/Practice/restoration/data/test_zh_tw.json")
