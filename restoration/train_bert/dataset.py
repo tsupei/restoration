@@ -92,13 +92,13 @@ class Data(object):
 
         tokens.append("[CLS]")
 
-        assert len(sents) == 5
+        # assert len(sents) == 5
 
         for idx, a_sent in enumerate(sents):
             a_token = self.bert_tokenizer.tokenize(a_sent)
             tokens.extend(a_token)
             tokens.append("[SEP]")
-            if idx+1 != 5:
+            if idx+1 != len(sents):
                 segment_tokens.extend([0] * (len(a_token) + 1))
             else:
                 segment_tokens.extend([1] * (len(a_token) + 1))
