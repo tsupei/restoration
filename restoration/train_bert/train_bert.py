@@ -63,7 +63,7 @@ class Trainee(object):
                     file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, value))
                     file.write("\n")
 
-    def train(self, data, params, fine_tune=False, save_dir=None, backup=False):
+    def train(self, data, params, loss_weight=1.0, fine_tune=False, save_dir=None, backup=False):
         # For consistent model
         self.set_seed(1)
 
@@ -139,7 +139,9 @@ class Trainee(object):
                     tag = tag.view(params.bsz, config.max_len, -1)
                     _tag = tag.permute(0, 2, 1)
 
-                    tag_loss = F.cross_entropy(_tag, target, reduction="sum")
+                    target_weight = torch.tensor([loss_weight, 1]).to(self.device)
+
+                    tag_loss = F.cross_entropy(_tag, target, weight=target_weight, reduction="sum")
                     tag_loss /= params.bsz
 
                     _tag = tag.view(-1, 2)
