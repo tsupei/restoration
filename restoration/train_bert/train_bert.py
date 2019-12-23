@@ -186,6 +186,9 @@ class Trainee(object):
                                                                                             params.bert))
                                 self.save_bert(params.bert)
                                 best_fscore = scores[0]
+
+                                # Record the highest F-scores
+                                self.save_stats(save_dir, "save_score.txt", epoch, num_of_batch, cnt, scores[0])
                             else:
                                 logger.info("[Epoch {}][Step {}/{}] Models are not saved! F1 score {} is lower than {}".format(epoch, cnt, num_of_batch, scores[0], best_fscore))
 
