@@ -63,7 +63,7 @@ class Trainee(object):
                     file.write("{}\t{}\t{}\t{}".format(epoch, num_of_batch, cnt, value))
                     file.write("\n")
 
-    def train(self, data, params, loss_weight=1.0, fine_tune=False, save_dir=None, backup=False):
+    def train(self, data, params, loss_weight=1.0, eval_ratio=4, fine_tune=False, save_dir=None, backup=False):
         # For consistent model
         self.set_seed(1)
 
@@ -101,7 +101,7 @@ class Trainee(object):
             num_of_batch = len(data_loader.dataset) // params.bsz
 
             # Logging interval for loss, cm, ...
-            log_interval = num_of_batch // config.log_time_ratio
+            log_interval = num_of_batch // eval_ratio
             log_interval = log_interval if log_interval != 0 else 1
 
             # Counter of step
@@ -186,9 +186,6 @@ class Trainee(object):
                                                                                             params.bert))
                                 self.save_bert(params.bert)
                                 best_fscore = scores[0]
-
-                                # Record the highest F-scores
-                                self.save_stats(save_dir, "save_score.txt", epoch, num_of_batch, cnt, scores[0])
                             else:
                                 logger.info("[Epoch {}][Step {}/{}] Models are not saved! F1 score {} is lower than {}".format(epoch, cnt, num_of_batch, scores[0], best_fscore))
 
@@ -253,7 +250,7 @@ class Trainee(object):
         if self.n_gpu > 0:
             torch.cuda.manual_seed_all(seed)
 
-    def test(self, data, params, save_dir=None):
+    def test(self, data, params, eval_ratio=4, save_dir=None):
         # Set seed
         self.set_seed(1)
 
@@ -280,7 +277,7 @@ class Trainee(object):
         with tqdm(total=num_of_batch) as pbar:
 
             # Logging interval for loss, cm, ...
-            log_interval = num_of_batch // config.log_time_ratio
+            log_interval = num_of_batch // eval_ratio
             log_interval = log_interval if log_interval != 0 else 1
 
             for feature, target, segments_tensors, attns_tensors in data_loader:
